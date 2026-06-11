@@ -95,30 +95,53 @@ export function ContactsClient() {
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const loadingToast = toast.loading('Importing contacts...');
     try {
       const rows = await parseCSVImport(file);
+      if (rows.length === 0) {
+        toast.dismiss(loadingToast);
+        toast.error('No rows found in file');
+        e.target.value = '';
+        return;
+      }
       let imported = 0;
+      const errors: string[] = [];
       for (const row of rows) {
+        const full_name =
+          row['full_name'] || row['Full Name'] || row['Name'] ||
+          row['name'] || row['Contact'] || row['Contact Name'] || '';
+        if (!full_name) continue;
         const res = await fetch('/api/contacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            full_name: row['full_name'] || row['Full Name'] || row['Name'],
-            title: row['title'] || row['Title'],
-            email: row['email'] || row['Email'],
-            phone: row['phone'] || row['Phone'],
-            linkedin_url: row['linkedin_url'] || row['LinkedIn'],
-            relationship_tier: row['relationship_tier'] || row['Tier'] || 'Tier 3',
-            notes: row['notes'] || row['Notes'],
+            full_name,
+            title: row['title'] || row['Title'] || row['Job Title'] || null,
+            email: row['email'] || row['Email'] || null,
+            phone: row['phone'] || row['Phone'] || row['Mobile'] || null,
+            linkedin_url: row['linkedin_url'] || row['LinkedIn'] || row['linkedin'] || null,
+            relationship_tier: row['relationship_tier'] || row['Tier'] || row['tier'] || 'Tier 3',
+            notes: row['notes'] || row['Notes'] || null,
             tags: [],
           }),
         });
-        if (res.ok) imported++;
+        if (res.ok) {
+          imported++;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          errors.push(err.error ?? 'Unknown error');
+        }
       }
-      toast.success(`Imported ${imported} contacts`);
-      fetchContacts();
-    } catch {
-      toast.error('Import failed');
+      toast.dismiss(loadingToast);
+      if (imported > 0) {
+        toast.success(`Imported ${imported} of ${rows.length} contacts`);
+        fetchContacts();
+      } else {
+        toast.error(`Import failed: ${errors[0] ?? 'No contacts imported'}`);
+      }
+    } catch (err) {
+      toast.dismiss(loadingToast);
+      toast.error(err instanceof Error ? err.message : 'Import failed');
     }
     e.target.value = '';
   }
