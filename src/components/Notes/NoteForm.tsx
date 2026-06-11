@@ -6,6 +6,7 @@ import { OutlinerEditor } from './OutlinerEditor';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { MultiSelect } from '@/components/ui/MultiSelect';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -34,9 +35,6 @@ export function NoteForm({ note, initialMeetingId, onClose, onSave }: Props) {
     note?.content?.length ? note.content : [makeItem()]
   );
 
-  const [companySearch, setCompanySearch] = useState('');
-  const [contactSearch, setContactSearch] = useState('');
-
   useEffect(() => {
     Promise.all([
       fetch('/api/companies?limit=200').then(r => r.json()),
@@ -48,14 +46,6 @@ export function NoteForm({ note, initialMeetingId, onClose, onSave }: Props) {
       setMeetings(Array.isArray(m) ? m : []);
     }).catch(() => {});
   }, []);
-
-  function toggleCompany(id: string) {
-    setSelectedCompanyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  }
-
-  function toggleContact(id: string) {
-    setSelectedContactIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,12 +78,8 @@ export function NoteForm({ note, initialMeetingId, onClose, onSave }: Props) {
     ...meetings.map(m => ({ value: m.id, label: m.agenda ?? m.date_time?.slice(0, 10) ?? m.id })),
   ];
 
-  const filteredCompanies = companies.filter(c =>
-    c.name.toLowerCase().includes(companySearch.toLowerCase())
-  );
-  const filteredContacts = contacts.filter(c =>
-    c.full_name.toLowerCase().includes(contactSearch.toLowerCase())
-  );
+  const companyOpts = companies.map(c => ({ value: c.id, label: c.name, sublabel: c.sector ?? undefined }));
+  const contactOpts = contacts.map(c => ({ value: c.id, label: c.full_name, sublabel: c.company?.name ?? c.title ?? undefined }));
 
   return (
     <Modal open onClose={onClose} title={note ? 'Edit Note' : 'New Note'} size="xl">
@@ -122,72 +108,24 @@ export function NoteForm({ note, initialMeetingId, onClose, onSave }: Props) {
           />
 
           {/* Companies */}
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Companies
-              {selectedCompanyIds.length > 0 && (
-                <span className="ml-1.5 text-blue-400">({selectedCompanyIds.length} selected)</span>
-              )}
-            </label>
-            {companies.length > 5 && (
-              <input
-                value={companySearch}
-                onChange={e => setCompanySearch(e.target.value)}
-                placeholder="Filter companies..."
-                className="input-field text-xs py-1 mb-2 w-full"
-              />
-            )}
-            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-              {filteredCompanies.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => toggleCompany(c.id)}
-                  className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                    selectedCompanyIds.includes(c.id)
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-[#1e2a3a] text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          </div>
+          <MultiSelect
+            label="Companies"
+            options={companyOpts}
+            selected={selectedCompanyIds}
+            onChange={setSelectedCompanyIds}
+            placeholder="Search companies..."
+            accentColor="blue"
+          />
 
           {/* Contacts */}
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Contacts
-              {selectedContactIds.length > 0 && (
-                <span className="ml-1.5 text-purple-400">({selectedContactIds.length} selected)</span>
-              )}
-            </label>
-            {contacts.length > 5 && (
-              <input
-                value={contactSearch}
-                onChange={e => setContactSearch(e.target.value)}
-                placeholder="Filter contacts..."
-                className="input-field text-xs py-1 mb-2 w-full"
-              />
-            )}
-            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-              {filteredContacts.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => toggleContact(c.id)}
-                  className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                    selectedContactIds.includes(c.id)
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-[#1e2a3a] text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {c.full_name}
-                </button>
-              ))}
-            </div>
-          </div>
+          <MultiSelect
+            label="Contacts"
+            options={contactOpts}
+            selected={selectedContactIds}
+            onChange={setSelectedContactIds}
+            placeholder="Search contacts..."
+            accentColor="purple"
+          />
 
           {/* Outliner */}
           <div>
@@ -200,7 +138,7 @@ export function NoteForm({ note, initialMeetingId, onClose, onSave }: Props) {
               />
             </div>
             <p className="text-xs text-slate-600 mt-1.5">
-              Enter = new bullet · Tab = indent · Shift+Tab = outdent · Shift+Enter = line break · Backspace on empty = delete
+              Enter = new bullet · Tab = indent · Shift+Tab = outdent · Backspace on empty = delete
             </p>
           </div>
         </div>
