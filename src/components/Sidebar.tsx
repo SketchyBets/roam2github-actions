@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
   LayoutDashboard, Building2, Users, CalendarDays,
-  CheckSquare, TrendingUp, FolderKanban, LogOut, Activity
+  CheckSquare, TrendingUp, FolderKanban, LogOut, Activity, FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ const nav = [
   { href: '/follow-ups', label: 'Follow-ups', icon: CheckSquare },
   { href: '/deals', label: 'Deals', icon: TrendingUp },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
+  { href: '/notes', label: 'Notes', icon: FileText },
 ];
 
 export function Sidebar() {

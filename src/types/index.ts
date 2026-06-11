@@ -124,6 +124,27 @@ export interface Project {
   updated_at: string;
 }
 
+export interface OutlinerItem {
+  id: string;
+  text: string;
+  level: number;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  date: string;
+  content: OutlinerItem[];
+  meeting_id?: string | null;
+  company_ids: string[];
+  contact_ids: string[];
+  created_at?: string;
+  updated_at?: string;
+  meeting?: { id: string; title: string } | null;
+  companies?: { id: string; name: string }[];
+  contacts?: { id: string; full_name: string }[];
+}
+
 export interface DashboardStats {
   open_followups: number;
   overdue_tasks: number;

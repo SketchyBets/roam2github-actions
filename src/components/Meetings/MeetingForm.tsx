@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Meeting, MeetingType, Company, Deal, Contact } from '@/types';
+import { Meeting, MeetingType, Company, Deal, Contact, Note, OutlinerItem } from '@/types';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { OutlinerEditor } from '@/components/Notes/OutlinerEditor';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -28,7 +29,18 @@ function toLocalDatetimeValue(iso: string | undefined | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function makeItem(): OutlinerItem {
+  return { id: crypto.randomUUID(), text: '', level: 0 };
+}
+
+type Tab = 'details' | 'notes';
+
 export function MeetingForm({ meeting, onClose, onSave }: Props) {
+  const [activeTab, setActiveTab] = useState<Tab>('details');
+  const [meetingNote, setMeetingNote] = useState<Note | null>(null);
+  const [noteContent, setNoteContent] = useState<OutlinerItem[]>([makeItem()]);
+  const [savingNote, setSavingNote] = useState(false);
+
   const [form, setForm] = useState({
     date_time: toLocalDatetimeValue(meeting?.date_time) || toLocalDatetimeValue(new Date().toISOString()),
     meeting_type: (meeting?.meeting_type ?? 'In-person') as MeetingType,
@@ -55,6 +67,47 @@ export function MeetingForm({ meeting, onClose, onSave }: Props) {
       setContacts(Array.isArray(cts) ? cts : []);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!meeting) return;
+    fetch(`/api/notes?meeting_id=${meeting.id}`)
+      .then(r => r.json())
+      .then(data => {
+        const existing = Array.isArray(data) && data.length > 0 ? data[0] : null;
+        if (existing) {
+          setMeetingNote(existing);
+          setNoteContent(existing.content?.length ? existing.content : [makeItem()]);
+        }
+      })
+      .catch(() => {});
+  }, [meeting]);
+
+  async function handleSaveNote() {
+    setSavingNote(true);
+    try {
+      const attendeeIds = form.attendee_ids;
+      const companyIds = form.company_id ? [form.company_id] : [];
+      const payload = {
+        title: form.agenda || (meeting?.date_time ? new Date(meeting.date_time).toLocaleDateString() : 'Meeting Notes'),
+        date: meeting?.date_time ? meeting.date_time.slice(0, 10) : new Date().toISOString().slice(0, 10),
+        content: noteContent,
+        meeting_id: meeting?.id ?? null,
+        company_ids: companyIds,
+        contact_ids: attendeeIds,
+      };
+      const url = meetingNote ? `/api/notes/${meetingNote.id}` : '/api/notes';
+      const method = meetingNote ? 'PUT' : 'POST';
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Save failed');
+      setMeetingNote(data);
+      toast.success('Notes saved');
+    } catch {
+      toast.error('Failed to save notes');
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
@@ -118,6 +171,48 @@ export function MeetingForm({ meeting, onClose, onSave }: Props) {
       title={meeting ? 'Edit Meeting' : 'Log Meeting'}
       size="lg"
     >
+      {/* Tabs — only show when editing an existing meeting */}
+      {meeting && (
+        <div className="flex border-b border-[#1e2a3a] px-5">
+          {(['details', 'notes'] as Tab[]).map(tab => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-2.5 text-xs font-medium capitalize transition-colors border-b-2 -mb-px ${
+                activeTab === tab
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'notes' && meeting ? (
+        <div className="p-5 space-y-3">
+          <p className="text-xs text-slate-500">
+            These notes are linked to this meeting and auto-linked to the meeting&apos;s company and attendees.
+          </p>
+          <div className="rounded-md border border-[#1e2a3a] bg-[#070d1a] p-3 min-h-[300px]">
+            <OutlinerEditor
+              items={noteContent}
+              onChange={setNoteContent}
+              placeholder="Start taking notes..."
+            />
+          </div>
+          <p className="text-xs text-slate-600">
+            Enter = new bullet · Tab = indent · Shift+Tab = outdent
+          </p>
+          <div className="flex justify-end pt-2 border-t border-[#1e2a3a]">
+            <Button type="button" variant="primary" onClick={handleSaveNote} disabled={savingNote}>
+              {savingNote ? 'Saving...' : 'Save Notes'}
+            </Button>
+          </div>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           {/* Date/Time */}
@@ -217,6 +312,7 @@ export function MeetingForm({ meeting, onClose, onSave }: Props) {
           </Button>
         </div>
       </form>
+      )}
     </Modal>
   );
 }
