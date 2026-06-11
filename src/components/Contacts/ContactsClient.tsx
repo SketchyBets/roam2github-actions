@@ -108,8 +108,8 @@ export function ContactsClient() {
       const errors: string[] = [];
       for (const row of rows) {
         const full_name =
-          row['full_name'] || row['Full Name'] || row['Name'] ||
-          row['name'] || row['Contact'] || row['Contact Name'] || '';
+          row['full_name'] || row['Full Name'] || row['First Name'] ||
+          row['Name'] || row['name'] || row['Contact Name'] || '';
         if (!full_name) continue;
         const res = await fetch('/api/contacts', {
           method: 'POST',
@@ -117,7 +117,7 @@ export function ContactsClient() {
           body: JSON.stringify({
             full_name,
             title: row['title'] || row['Title'] || row['Job Title'] || null,
-            email: row['email'] || row['Email'] || null,
+            email: row['email'] || row['Email'] || row['Email Address'] || null,
             phone: row['phone'] || row['Phone'] || row['Mobile'] || null,
             linkedin_url: row['linkedin_url'] || row['LinkedIn'] || row['linkedin'] || null,
             relationship_tier: row['relationship_tier'] || row['Tier'] || row['tier'] || 'Tier 3',
