@@ -1,0 +1,41 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { supabaseAdmin } from '@/lib/supabase';
+
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const status = searchParams.get('status');
+  const priority = searchParams.get('priority');
+
+  const db = supabaseAdmin();
+  let query = db
+    .from('projects')
+    .select('*, company:companies(id,name), deal:deals(id,name)')
+    .order('due_date', { ascending: true, nullsFirst: false });
+
+  if (status) query = query.eq('status', status);
+  if (priority) query = query.eq('priority', priority);
+
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await req.json();
+  const db = supabaseAdmin();
+  const { data, error } = await db
+    .from('projects')
+    .insert(body)
+    .select('*, company:companies(id,name), deal:deals(id,name)')
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data, { status: 201 });
+}
