@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Download, Search, Users } from 'lucide-react';
+import { Plus, Download, Upload, Search, Users } from 'lucide-react';
 import { Contact, RelationshipTier } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { Badge, TagBadge } from '@/components/ui/Badge';
@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ContactForm } from './ContactForm';
 import toast from 'react-hot-toast';
+import { parseCSVImport } from '@/lib/export';
 
 const TIERS: RelationshipTier[] = ['Tier 1', 'Tier 2', 'Tier 3'];
 
@@ -91,6 +92,37 @@ export function ContactsClient() {
     link.click();
   }
 
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const rows = await parseCSVImport(file);
+      let imported = 0;
+      for (const row of rows) {
+        const res = await fetch('/api/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            full_name: row['full_name'] || row['Full Name'] || row['Name'],
+            title: row['title'] || row['Title'],
+            email: row['email'] || row['Email'],
+            phone: row['phone'] || row['Phone'],
+            linkedin_url: row['linkedin_url'] || row['LinkedIn'],
+            relationship_tier: row['relationship_tier'] || row['Tier'] || 'Tier 3',
+            notes: row['notes'] || row['Notes'],
+            tags: [],
+          }),
+        });
+        if (res.ok) imported++;
+      }
+      toast.success(`Imported ${imported} contacts`);
+      fetchContacts();
+    } catch {
+      toast.error('Import failed');
+    }
+    e.target.value = '';
+  }
+
   const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
     <th
       className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3 whitespace-nowrap cursor-pointer hover:text-slate-200 select-none"
@@ -125,6 +157,10 @@ export function ContactsClient() {
           <Button variant="ghost" size="sm" onClick={handleExport}>
             <Download size={13} /> Export
           </Button>
+          <label className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md font-medium hover:bg-[#0d1730] text-slate-400 hover:text-slate-200 transition-colors">
+            <Upload size={13} /> Import
+            <input type="file" accept=".csv,.xlsx" className="hidden" onChange={handleImport} />
+          </label>
           <Button variant="primary" size="sm" onClick={() => { setEditing(null); setShowForm(true); }}>
             <Plus size={13} /> Add Contact
           </Button>
