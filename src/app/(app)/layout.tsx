@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
+import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
@@ -10,6 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen">
       <Sidebar />
+      <KeyboardShortcuts />
       <div className="flex-1 ml-0 lg:ml-56 flex flex-col min-h-screen">
         {children}
       </div>

@@ -55,6 +55,10 @@ export function MeetingForm({ meeting, onClose, onSave }: Props) {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showQuickFollowup, setShowQuickFollowup] = useState(false);
+  const [quickTitle, setQuickTitle] = useState('');
+  const [quickDue, setQuickDue] = useState('');
+  const [savingFollowup, setSavingFollowup] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -106,6 +110,34 @@ export function MeetingForm({ meeting, onClose, onSave }: Props) {
       toast.error('Failed to save notes');
     } finally {
       setSavingNote(false);
+    }
+  }
+
+  async function handleQuickFollowup() {
+    if (!quickTitle.trim()) return;
+    setSavingFollowup(true);
+    try {
+      const res = await fetch('/api/followups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: quickTitle.trim(),
+          due_date: quickDue || null,
+          priority: 'Medium',
+          status: 'Open',
+          company_id: form.company_id || null,
+          source_meeting_id: meeting?.id ?? null,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('Follow-up created');
+      setShowQuickFollowup(false);
+      setQuickTitle('');
+      setQuickDue('');
+    } catch {
+      toast.error('Failed to create follow-up');
+    } finally {
+      setSavingFollowup(false);
     }
   }
 
@@ -304,6 +336,48 @@ export function MeetingForm({ meeting, onClose, onSave }: Props) {
             </div>
           )}
         </div>
+
+        {/* Quick Follow-up */}
+        {meeting && (
+          <div className="border-t border-[#1e2a3a] pt-3">
+            {showQuickFollowup ? (
+              <div className="space-y-2 bg-[#0a1225] rounded-md p-3 border border-[#1e2a3a]">
+                <p className="text-xs font-medium text-slate-400">Quick Follow-up</p>
+                <input
+                  type="text"
+                  value={quickTitle}
+                  onChange={e => setQuickTitle(e.target.value)}
+                  placeholder="Follow-up title..."
+                  className="input-field w-full text-xs py-1.5"
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleQuickFollowup(); } }}
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={quickDue}
+                    onChange={e => setQuickDue(e.target.value)}
+                    className="input-field text-xs py-1.5 flex-1"
+                  />
+                  <Button type="button" variant="primary" size="sm" onClick={handleQuickFollowup} disabled={savingFollowup || !quickTitle.trim()}>
+                    {savingFollowup ? 'Saving...' : 'Add'}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setShowQuickFollowup(false); setQuickTitle(''); setQuickDue(''); }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowQuickFollowup(true)}
+                className="text-xs text-slate-500 hover:text-blue-400 transition-colors"
+              >
+                + Quick Follow-up
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-2 justify-end pt-2 border-t border-[#1e2a3a]">
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>

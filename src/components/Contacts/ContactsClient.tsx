@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ContactForm } from './ContactForm';
 import toast from 'react-hot-toast';
 import { parseCSVImport } from '@/lib/export';
+import { trackView } from '@/lib/recentlyViewed';
 
 const TIERS: RelationshipTier[] = ['Tier 1', 'Tier 2', 'Tier 3'];
 
@@ -31,6 +32,25 @@ export function ContactsClient() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+
+  // Keyboard shortcut: open new contact form
+  useEffect(() => {
+    const pending = sessionStorage.getItem('pendingNew');
+    if (pending === 'contact') {
+      sessionStorage.removeItem('pendingNew');
+      setEditing(null);
+      setShowForm(true);
+    }
+    const handler = (e: Event) => {
+      if ((e as CustomEvent).detail === 'contact') {
+        sessionStorage.removeItem('pendingNew');
+        setEditing(null);
+        setShowForm(true);
+      }
+    };
+    window.addEventListener('open-new-modal', handler);
+    return () => window.removeEventListener('open-new-modal', handler);
+  }, []);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -128,6 +148,14 @@ export function ContactsClient() {
         e.target.value = '';
         return;
       }
+      // Build company name → id map for auto-matching
+      const companiesRes = await fetch('/api/companies?limit=500');
+      const companiesData = companiesRes.ok ? await companiesRes.json() : [];
+      const companyMap: Record<string, string> = {};
+      (companiesData ?? []).forEach((c: { id: string; name: string }) => {
+        companyMap[c.name.trim().toLowerCase()] = c.id;
+      });
+
       let imported = 0;
       const errors: string[] = [];
       for (const row of rows) {
@@ -138,6 +166,8 @@ export function ContactsClient() {
           : firstName || lastName
           || row['full_name'] || row['Full Name'] || row['Name'] || row['name'] || '';
         if (!full_name) continue;
+        const companyName = (row['Company'] || row['Company Name'] || row['Employer'] || row['company'] || '').trim();
+        const company_id = companyName ? (companyMap[companyName.toLowerCase()] ?? null) : null;
         const res = await fetch('/api/contacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -149,6 +179,7 @@ export function ContactsClient() {
             linkedin_url: row['linkedin_url'] || row['LinkedIn'] || null,
             relationship_tier: row['relationship_tier'] || row['Tier'] || 'Tier 3',
             notes: row['notes'] || row['Notes'] || null,
+            company_id,
             tags: [],
           }),
         });
@@ -268,7 +299,7 @@ export function ContactsClient() {
                   <tr
                     key={c.id}
                     className={`border-b border-[#111f3d] hover:bg-[#0d1730] transition-colors cursor-pointer ${selected.has(c.id) ? 'bg-blue-900/10' : ''}`}
-                    onClick={() => { setEditing(c); setShowForm(true); }}
+                    onClick={() => { setEditing(c); setShowForm(true); trackView({ type: 'contact', id: c.id, name: c.full_name, url: '/contacts' }); }}
                   >
                     <td className="px-4 py-3" onClick={e => { e.stopPropagation(); toggleSelect(c.id); }}>
                       <input

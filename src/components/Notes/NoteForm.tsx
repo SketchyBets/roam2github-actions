@@ -12,6 +12,8 @@ import toast from 'react-hot-toast';
 interface Props {
   note: Note | null;
   initialMeetingId?: string;
+  defaultCompanyIds?: string[];
+  defaultContactIds?: string[];
   onClose: () => void;
   onSave: (note: Note) => void;
 }
@@ -20,7 +22,7 @@ function makeItem(): OutlinerItem {
   return { id: crypto.randomUUID(), text: '', level: 0 };
 }
 
-export function NoteForm({ note, initialMeetingId, onClose, onSave }: Props) {
+export function NoteForm({ note, initialMeetingId, defaultCompanyIds, defaultContactIds, onClose, onSave }: Props) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -29,8 +31,8 @@ export function NoteForm({ note, initialMeetingId, onClose, onSave }: Props) {
   const [title, setTitle] = useState(note?.title ?? '');
   const [date, setDate] = useState(note?.date ?? new Date().toISOString().slice(0, 10));
   const [meetingId, setMeetingId] = useState(note?.meeting_id ?? initialMeetingId ?? '');
-  const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>(note?.company_ids ?? []);
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>(note?.contact_ids ?? []);
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>(note?.company_ids ?? defaultCompanyIds ?? []);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>(note?.contact_ids ?? defaultContactIds ?? []);
   const [content, setContent] = useState<OutlinerItem[]>(
     note?.content?.length ? note.content : [makeItem()]
   );

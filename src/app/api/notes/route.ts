@@ -19,7 +19,9 @@ export async function GET(req: Request) {
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
 
-  if (search) query = query.ilike('title', `%${search}%`);
+  if (search) {
+    query = query.or(`title.ilike.%${search}%,content::text.ilike.%${search}%`);
+  }
   if (companyId) query = query.contains('company_ids', [companyId]);
   if (contactId) query = query.contains('contact_ids', [contactId]);
   if (meetingId) query = query.eq('meeting_id', meetingId);

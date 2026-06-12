@@ -19,6 +19,24 @@ export function NotesClient() {
   const [deleting, setDeleting] = useState<Note | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  useEffect(() => {
+    const pending = sessionStorage.getItem('pendingNew');
+    if (pending === 'note') {
+      sessionStorage.removeItem('pendingNew');
+      setEditing(null);
+      setShowForm(true);
+    }
+    const handler = (e: Event) => {
+      if ((e as CustomEvent).detail === 'note') {
+        sessionStorage.removeItem('pendingNew');
+        setEditing(null);
+        setShowForm(true);
+      }
+    };
+    window.addEventListener('open-new-modal', handler);
+    return () => window.removeEventListener('open-new-modal', handler);
+  }, []);
+
   const fetchNotes = useCallback(async () => {
     setLoading(true);
     try {

@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CompanyForm } from './CompanyForm';
 import toast from 'react-hot-toast';
 import { parseCSVImport } from '@/lib/export';
+import { trackView } from '@/lib/recentlyViewed';
 
 const COVERAGE_STATUSES = ['Active', 'Watch', 'Inactive'];
 const SECTORS = ['Technology', 'Healthcare', 'Financial Services', 'Industrials', 'Consumer', 'Energy', 'Real Estate', 'Media', 'Other'];
@@ -27,6 +28,24 @@ export function CompaniesClient() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sortField, setSortField] = useState<keyof Company>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  useEffect(() => {
+    const pending = sessionStorage.getItem('pendingNew');
+    if (pending === 'company') {
+      sessionStorage.removeItem('pendingNew');
+      setEditing(null);
+      setShowForm(true);
+    }
+    const handler = (e: Event) => {
+      if ((e as CustomEvent).detail === 'company') {
+        sessionStorage.removeItem('pendingNew');
+        setEditing(null);
+        setShowForm(true);
+      }
+    };
+    window.addEventListener('open-new-modal', handler);
+    return () => window.removeEventListener('open-new-modal', handler);
+  }, []);
 
   const fetchCompanies = useCallback(async () => {
     setLoading(true);
@@ -74,31 +93,53 @@ export function CompaniesClient() {
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const loadingToast = toast.loading('Importing companies...');
     try {
       const rows = await parseCSVImport(file);
+      if (rows.length === 0) {
+        toast.dismiss(loadingToast);
+        toast.error('No rows found in file');
+        e.target.value = '';
+        return;
+      }
       let imported = 0;
+      const errors: string[] = [];
       for (const row of rows) {
+        const name = row['name'] || row['Company Name'] || row['Company'] || row['Name'] || '';
+        if (!name.trim()) continue;
         const res = await fetch('/api/companies', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: row['name'] || row['Company Name'] || row['Company'],
-            ticker: row['ticker'] || row['Ticker'],
-            sector: row['sector'] || row['Sector'],
-            industry: row['industry'] || row['Industry'],
-            hq_location: row['hq_location'] || row['Location'] || row['HQ'],
-            coverage_status: row['coverage_status'] || row['Status'] || 'Active',
-            relationship_owner: row['relationship_owner'] || row['Owner'],
-            notes: row['notes'] || row['Notes'],
+            name: name.trim(),
+            ticker: row['ticker'] || row['Ticker'] || row['Symbol'] || null,
+            exchange: row['exchange'] || row['Exchange'] || null,
+            sector: row['sector'] || row['Sector'] || null,
+            industry: row['industry'] || row['Industry'] || null,
+            sub_sector: row['sub_sector'] || row['Sub-Sector'] || row['Sub Sector'] || null,
+            hq_location: row['hq_location'] || row['HQ Location'] || row['HQ'] || row['Location'] || null,
+            coverage_status: row['coverage_status'] || row['Coverage Status'] || row['Status'] || 'Active',
+            relationship_owner: row['relationship_owner'] || row['Relationship Owner'] || row['Owner'] || null,
+            notes: row['notes'] || row['Notes'] || null,
             tags: [],
           }),
         });
         if (res.ok) imported++;
+        else {
+          const err = await res.json().catch(() => ({}));
+          errors.push(err.error ?? 'Unknown error');
+        }
       }
-      toast.success(`Imported ${imported} companies`);
-      fetchCompanies();
-    } catch {
-      toast.error('Import failed');
+      toast.dismiss(loadingToast);
+      if (imported > 0) {
+        toast.success(`Imported ${imported} of ${rows.length} companies`);
+        fetchCompanies();
+      } else {
+        toast.error(`Import failed: ${errors[0] ?? 'No companies imported'}`);
+      }
+    } catch (err) {
+      toast.dismiss(loadingToast);
+      toast.error(err instanceof Error ? err.message : 'Import failed');
     }
     e.target.value = '';
   }
@@ -175,7 +216,7 @@ export function CompaniesClient() {
                   <tr
                     key={c.id}
                     className="border-b border-[#111f3d] hover:bg-[#0d1730] transition-colors cursor-pointer"
-                    onClick={() => { setEditing(c); setShowForm(true); }}
+                    onClick={() => { setEditing(c); setShowForm(true); trackView({ type: 'company', id: c.id, name: c.name, url: '/companies' }); }}
                   >
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-200 text-sm">{c.name}</div>

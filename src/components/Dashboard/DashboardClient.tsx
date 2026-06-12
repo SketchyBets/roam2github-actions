@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import {
   CheckSquare, AlertTriangle, TrendingUp, CalendarDays,
-  Users, Building2, Mail, RefreshCw
+  Mail, RefreshCw, Clock, Building2, Users, FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDate, formatDateTime, isOverdue } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { getRecentlyViewed, RecentItem } from '@/lib/recentlyViewed';
 import toast from 'react-hot-toast';
 
 interface StatsData {
@@ -19,17 +20,34 @@ interface StatsData {
   recent_contacts: { id: string; full_name: string; title?: string; company?: { name: string } }[];
   upcoming_meetings: { id: string; date_time: string; meeting_type: string; company?: { name: string }; agenda?: string }[];
   deals_by_stage: Record<string, number>;
+  fees_by_stage: Record<string, number>;
   overdue_tasks: { id: string; title: string; due_date: string; priority: string; company?: { name: string } }[];
 }
 
 const DEAL_STAGES = ['Prospect', 'Pitching', 'Mandate Won', 'In Execution', 'Closing'];
 
+function formatFee(v: number) {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
+const RECENT_ICONS: Record<string, React.ElementType> = {
+  contact: Users,
+  company: Building2,
+  deal: TrendingUp,
+  meeting: CalendarDays,
+  note: FileText,
+};
+
 export function DashboardClient() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [digestLoading, setDigestLoading] = useState(false);
+  const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
 
   useEffect(() => {
+    setRecentItems(getRecentlyViewed().slice(0, 5));
     fetchStats();
   }, []);
 
@@ -55,8 +73,10 @@ export function DashboardClient() {
       );
 
       const dealsByStage: Record<string, number> = {};
-      (deals ?? []).forEach((d: { stage: string }) => {
+      const feesByStage: Record<string, number> = {};
+      (deals ?? []).forEach((d: { stage: string; estimated_fee?: number }) => {
         dealsByStage[d.stage] = (dealsByStage[d.stage] ?? 0) + 1;
+        if (d.estimated_fee) feesByStage[d.stage] = (feesByStage[d.stage] ?? 0) + d.estimated_fee;
       });
 
       setStats({
@@ -67,6 +87,7 @@ export function DashboardClient() {
         recent_contacts: (contacts ?? []).slice(0, 5),
         upcoming_meetings: (meetings ?? []).slice(0, 5),
         deals_by_stage: dealsByStage,
+        fees_by_stage: feesByStage,
         overdue_tasks: overdueTasks.slice(0, 5),
       });
     } catch {
@@ -91,6 +112,8 @@ export function DashboardClient() {
   }
 
   if (loading) return <div className="flex items-center justify-center h-64 text-slate-600 text-sm">Loading...</div>;
+
+  const totalFee = Object.values(stats?.fees_by_stage ?? {}).reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-6 animate-in">
@@ -128,13 +151,13 @@ export function DashboardClient() {
           </div>
         </Link>
 
-        <Link href="/meetings" className="card p-4 hover:border-blue-700/50 transition-colors">
+        <Link href="/deals" className="card p-4 hover:border-emerald-700/50 transition-colors">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Meetings This Week</p>
-              <p className="text-3xl font-bold text-slate-100 num">{stats?.meetings_this_week ?? 0}</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Pipeline Fees</p>
+              <p className="text-3xl font-bold text-emerald-400 num">{totalFee > 0 ? formatFee(totalFee) : '—'}</p>
             </div>
-            <CalendarDays size={18} className="text-violet-500 mt-0.5" />
+            <TrendingUp size={18} className="text-emerald-500 mt-0.5" />
           </div>
         </Link>
       </div>
@@ -149,10 +172,11 @@ export function DashboardClient() {
           <div className="space-y-2">
             {DEAL_STAGES.map((stage) => {
               const count = stats?.deals_by_stage[stage] ?? 0;
+              const fee = stats?.fees_by_stage[stage] ?? 0;
               const max = Math.max(...DEAL_STAGES.map((s) => stats?.deals_by_stage[s] ?? 0), 1);
               return (
                 <div key={stage} className="flex items-center gap-3">
-                  <div className="w-28 text-xs text-slate-500 truncate">{stage}</div>
+                  <div className="w-24 text-xs text-slate-500 truncate">{stage}</div>
                   <div className="flex-1 h-4 bg-[#0a1225] rounded overflow-hidden">
                     <div
                       className="h-full bg-blue-600/60 rounded transition-all"
@@ -160,9 +184,16 @@ export function DashboardClient() {
                     />
                   </div>
                   <div className="w-5 text-right text-xs font-medium text-slate-400 num">{count}</div>
+                  {fee > 0 && <div className="w-12 text-right text-[11px] text-emerald-500 num">{formatFee(fee)}</div>}
                 </div>
               );
             })}
+            {totalFee > 0 && (
+              <div className="flex items-center justify-between pt-2 border-t border-[#1e2a3a]">
+                <span className="text-xs text-slate-500">Total Pipeline</span>
+                <span className="text-sm font-semibold text-emerald-400 num">{formatFee(totalFee)}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -215,6 +246,31 @@ export function DashboardClient() {
         </div>
       </div>
 
+      {/* Recently viewed */}
+      {recentItems.length > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={14} className="text-slate-500" />
+            <h2 className="text-sm font-semibold text-slate-300">Recently Viewed</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {recentItems.map(item => {
+              const Icon = RECENT_ICONS[item.type] ?? FileText;
+              return (
+                <Link
+                  key={`${item.type}-${item.id}`}
+                  href={item.url}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs bg-[#0a1225] border border-[#1e2a3a] text-slate-300 hover:border-blue-700/50 hover:text-slate-100 transition-colors"
+                >
+                  <Icon size={11} className="text-slate-500" />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Actions row */}
       <div className="flex items-center gap-3 pt-2">
         <Button variant="ghost" size="sm" onClick={fetchStats}>
@@ -223,6 +279,9 @@ export function DashboardClient() {
         <Button variant="secondary" size="sm" onClick={sendDigest} disabled={digestLoading}>
           <Mail size={13} /> {digestLoading ? 'Sending...' : 'Send Weekly Digest'}
         </Button>
+        <p className="text-xs text-slate-700 ml-auto">
+          Shortcuts: <span className="font-mono">C</span> contacts · <span className="font-mono">N</span> notes · <span className="font-mono">M</span> meetings · <span className="font-mono">D</span> deals · <span className="font-mono">F</span> follow-ups
+        </p>
       </div>
     </div>
   );

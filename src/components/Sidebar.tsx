@@ -10,6 +10,11 @@ import {
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
+interface FollowUpItem {
+  due_date?: string;
+  status: string;
+}
+
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/companies', label: 'Companies', icon: Building2 },
@@ -24,6 +29,18 @@ const nav = [
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [overdueCount, setOverdueCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/followups?open_only=true')
+      .then(r => r.json())
+      .then((data: FollowUpItem[]) => {
+        const now = new Date();
+        const count = (data ?? []).filter(f => f.due_date && new Date(f.due_date) < now).length;
+        setOverdueCount(count);
+      })
+      .catch(() => {});
+  }, [pathname]);
 
   // Close sidebar on route change (mobile)
   useEffect(() => { setOpen(false); }, [pathname]);
@@ -100,6 +117,11 @@ export function Sidebar() {
               >
                 <Icon size={15} className={active ? 'text-blue-400' : ''} />
                 {label}
+                {label === 'Follow-ups' && overdueCount > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                    {overdueCount > 99 ? '99+' : overdueCount}
+                  </span>
+                )}
               </Link>
             );
           })}

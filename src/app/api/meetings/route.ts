@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const company_id = searchParams.get('company_id');
+  const deal_id = searchParams.get('deal_id');
   const upcoming = searchParams.get('upcoming');
 
   const db = supabaseAdmin();
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
     .order('date_time', { ascending: false });
 
   if (company_id) query = query.eq('company_id', company_id);
+  if (deal_id) query = query.eq('deal_id', deal_id);
   if (upcoming === 'true') {
     const now = new Date().toISOString();
     const weekOut = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
