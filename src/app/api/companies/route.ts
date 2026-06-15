@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search');
 
   const db = supabaseAdmin();
-  let query = db.from('companies').select('*').order('name');
+  let query = db.from('companies').select('*').order('name').limit(10000);
 
   if (status) query = query.eq('coverage_status', status);
   if (sector) query = query.eq('sector', sector);

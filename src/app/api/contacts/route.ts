@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search');
 
   const db = supabaseAdmin();
-  let query = db.from('contacts').select('*, company:companies(id,name)').order('full_name');
+  let query = db.from('contacts').select('*, company:companies(id,name)').order('full_name').limit(10000);
 
   if (tier) query = query.eq('relationship_tier', tier);
   if (company_id) query = query.eq('company_id', company_id);
